@@ -52,6 +52,7 @@ RLT.recentLoot = {}
 RLT.displayTimer = nil
 RLT.frame = nil
 RLT.lastLootTime = 0  -- timestamp of last loot received
+RLT.mouseOver = false  -- track if mouse is over the frame
 
 -- Create settings panel
 function RLT:CreateSettingsPanel()
@@ -210,6 +211,17 @@ function RLT:CreateFrame()
         settings.positionX = x
         settings.positionY = y
         RLT:SaveSettings()
+    end)
+    
+    -- Mouse enter/leave events for auto-hide control
+    frame:SetScript("OnEnter", function()
+        RLT.mouseOver = true
+    end)
+    
+    frame:SetScript("OnLeave", function()
+        RLT.mouseOver = false
+        -- Restart the hide timer when mouse leaves
+        RLT:StartDisplayTimer()
     end)
     
     -- Title bar
@@ -387,11 +399,23 @@ function RLT:StartDisplayTimer()
         self.displayTimer = nil
     end
     
+    -- Don't start timer if mouse is over the frame
+    if self.mouseOver then
+        return
+    end
+    
     -- Create a timer frame
     local timerFrame = CreateFrame("Frame")
     local elapsed = 0
     timerFrame:SetScript("OnUpdate", function(self, delta)
         elapsed = elapsed + delta
+        
+        -- Pause timer if mouse is over the frame
+        if RLT.mouseOver then
+            elapsed = 0
+            return
+        end
+        
         if elapsed >= settings.displayTime then
             self:SetScript("OnUpdate", nil)
             if RLT.frame then
