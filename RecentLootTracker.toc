@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: Recent Loot Tracker
+## Notes: Shows recently acquired loot in a persistent window
+## Author: YourName
+## Version: 1.0
+
+RecentLootTracker.lua
