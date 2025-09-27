@@ -1,4 +1,4 @@
--- Add to Blizzard Options-- RecentLootTracker: Shows recently acquired loot in a persistent window
+-- Add to Blizzard Options -- RecentLootTracker: Shows recently acquired loot in a persistent window
 -- Compatible with WoW 3.3.5a (WotLK)
 
 local addonName = "RecentLootTracker"
@@ -167,15 +167,21 @@ function RLT:CreateSettingsPanel()
     sessionCheckbox:SetScript("OnClick", function(self)
         settings.onlyCurrentSession = self:GetChecked()
         RLT:SaveSettings()
+        print("Recent Loot Tracker: Only current session mode " .. (settings.onlyCurrentSession and "enabled" or "disabled"))
     end)
     
-    -- Help text
-    local helpText = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    helpText:SetPoint("TOPLEFT", sessionCheckbox, "BOTTOMLEFT", 20, -10)
-    helpText:SetPoint("RIGHT", panel, "RIGHT", -20, 0)
-    helpText:SetJustifyH("LEFT")
-    helpText:SetText("When enabled, only items from your most recent kill will be shown. When disabled, shows the last " .. settings.maxEntries .. " items collected.")
-    helpText:SetTextColor(0.8, 0.8, 0.8, 1)
+    -- Add tooltip to checkbox
+    sessionCheckbox:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Only show loot from most recent kill", 1, 1, 1, 1, true)
+        GameTooltip:AddLine("When enabled: Only items from your most recent kill will be shown. New kills clear previous loot.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("When disabled: Shows the last " .. settings.maxEntries .. " items collected regardless of when/where.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    
+    sessionCheckbox:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
     InterfaceOptions_AddCategory(panel)
     
     return panel
@@ -259,6 +265,17 @@ function RLT:CreateLootEntry(parent, index)
     entry:SetHeight(ENTRY_HEIGHT)
     entry:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(index - 1) * ENTRY_HEIGHT)
     
+    -- Enable mouse events for tooltip and highlighting
+    entry:EnableMouse(true)
+    
+    -- Create highlight texture (initially hidden)
+    local highlight = entry:CreateTexture(nil, "BACKGROUND")
+    highlight:SetAllPoints(entry)
+    highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    highlight:SetBlendMode("ADD")
+    highlight:SetAlpha(0.5)
+    highlight:Hide()
+    
     -- Item icon
     local icon = CreateFrame("Frame", nil, entry)
     icon:SetWidth(16)
@@ -276,10 +293,40 @@ function RLT:CreateLootEntry(parent, index)
     name:SetJustifyH("LEFT")
     name:SetText("Unknown Item")
     
+    -- Mouse events for tooltip and highlighting
+    entry:SetScript("OnEnter", function(self)
+        -- Show highlight
+        highlight:Show()
+        
+        -- Show tooltip if we have item data
+        if entry.itemLink then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetHyperlink(entry.itemLink)
+            GameTooltip:Show()
+        end
+    end)
+    
+    entry:SetScript("OnLeave", function(self)
+        -- Hide highlight
+        highlight:Hide()
+        
+        -- Hide tooltip
+        GameTooltip:Hide()
+    end)
+    
     entry.icon = iconTexture
     entry.name = name
+    entry.highlight = highlight
     
     return entry
+end
+
+-- Cleanup loot entries by hiding and clearing itemLink
+function RLT:CleanupLootEntries(entries)
+    for i = 1, #entries do
+        entries[i]:Hide()
+        entries[i].itemLink = nil
+    end
 end
 
 -- Update the loot display
@@ -290,9 +337,7 @@ function RLT:UpdateDisplay()
     local entries = self.frame.lootEntries
     
     -- Clear existing entries
-    for i = 1, #entries do
-        entries[i]:Hide()
-    end
+    RLT:CleanupLootEntries(entries)
     
     -- Create/show entries for recent loot
     local numItems = math.min(#self.recentLoot, settings.maxEntries)
@@ -325,6 +370,10 @@ function RLT:UpdateDisplay()
         end
         
         entry.name:SetText(colorCode .. displayName .. "|r")
+        
+        -- Store item link for tooltip
+        entry.itemLink = lootData.link
+        
         entry:Show()
     end
     

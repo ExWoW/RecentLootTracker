@@ -1,7 +1,8 @@
 ## Interface: 30300
 ## Title: Recent Loot Tracker
 ## Notes: Shows recently acquired loot in a persistent window
-## Author: YourName
+## Author: ExWoW
 ## Version: 1.0
+## SavedVariables: RecentLootTrackerDB
 
 RecentLootTracker.lua
