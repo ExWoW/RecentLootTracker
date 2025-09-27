@@ -10,8 +10,8 @@ This addon was written to address the 'issue' of the loot window disappearing to
 - Highlights new loot entries for better visibility.
 
 ## Installation
-1. Download the addon files.
-2. Place the files in your World of Warcraft `Interface/AddOns` directory.
+1. Download the addon files by clicking the green "Code" button and selecting "Download ZIP".
+2. Unzip the folder and place the `RecentLootTracker` folder into your World of Warcraft `Interface/AddOns` directory.
 3. Restart World of Warcraft and enable the addon in the AddOns menu.
 
 ## Configuration
@@ -20,3 +20,4 @@ This addon was written to address the 'issue' of the loot window disappearing to
     - Number of items to display. 
     - Display position and size of the loot window.
     - Enable or disable session mode.
+- Use the `/rlt` command in-game to toggle the permanent display of the loot window.
