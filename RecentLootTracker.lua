@@ -1,4 +1,4 @@
--- RecentLootTracker: Shows recently acquired loot in a persistent window
+-- Add to Blizzard Options-- RecentLootTracker: Shows recently acquired loot in a persistent window
 -- Compatible with WoW 3.3.5a (WotLK)
 
 local addonName = "RecentLootTracker"
@@ -12,6 +12,7 @@ local DEFAULT_SETTINGS = {
     windowHeight = 200,     -- window height
     positionX = 200,        -- window X position offset
     positionY = 100,        -- window Y position offset
+    onlyCurrentSession = false,  -- only show loot from most recent kill
 }
 
 -- Current settings (will be loaded from saved variables)
@@ -19,6 +20,7 @@ local settings = {}
 
 -- Constants
 local ENTRY_HEIGHT = 20
+local LOOT_SESSION_TIMEOUT = 3  -- seconds between loot to consider new session
 
 -- Initialize settings with defaults
 function RLT:InitializeSettings()
@@ -49,6 +51,7 @@ end
 RLT.recentLoot = {}
 RLT.displayTimer = nil
 RLT.frame = nil
+RLT.lastLootTime = 0  -- timestamp of last loot received
 
 -- Create settings panel
 function RLT:CreateSettingsPanel()
@@ -155,7 +158,23 @@ function RLT:CreateSettingsPanel()
         print("Recent Loot Tracker: Window position reset to center")
     end)
     
-    -- Add to Blizzard Options
+    -- Only Current Session Checkbox
+    local sessionCheckbox = CreateFrame("CheckButton", "RLTSessionCheckbox", panel, "InterfaceOptionsCheckButtonTemplate")
+    sessionCheckbox:SetPoint("TOPLEFT", resetButton, "BOTTOMLEFT", 0, -20)
+    getglobal(sessionCheckbox:GetName() .. "Text"):SetText("Only show loot from most recent kill")
+    sessionCheckbox:SetChecked(settings.onlyCurrentSession)
+    sessionCheckbox:SetScript("OnClick", function(self)
+        settings.onlyCurrentSession = self:GetChecked()
+        RLT:SaveSettings()
+    end)
+    
+    -- Help text
+    local helpText = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    helpText:SetPoint("TOPLEFT", sessionCheckbox, "BOTTOMLEFT", 20, -10)
+    helpText:SetPoint("RIGHT", panel, "RIGHT", -20, 0)
+    helpText:SetJustifyH("LEFT")
+    helpText:SetText("When enabled, only items from your most recent kill will be shown. When disabled, shows the last " .. settings.maxEntries .. " items collected.")
+    helpText:SetTextColor(0.8, 0.8, 0.8, 1)
     InterfaceOptions_AddCategory(panel)
     
     return panel
@@ -326,22 +345,36 @@ function RLT:AddLoot(itemLink, count)
         return
     end
     
+    local currentTime = time()
+    
+    -- Check if this is a new loot session (more than LOOT_SESSION_TIMEOUT seconds since last loot)
+    local isNewSession = (currentTime - self.lastLootTime) > LOOT_SESSION_TIMEOUT
+    
+    -- If we're in "only current session" mode and this is a new session, clear previous loot
+    if settings.onlyCurrentSession and isNewSession and #self.recentLoot > 0 then
+        self.recentLoot = {}
+    end
+    
     local lootData = {
         name = itemName,
         link = itemLink,
         quality = itemQuality,
         texture = itemTexture,
         count = count or 1,
-        timestamp = time()
+        timestamp = currentTime
     }
     
     -- Insert at the beginning of the list
     table.insert(self.recentLoot, 1, lootData)
     
-    -- Remove old entries
-    while #self.recentLoot > settings.maxEntries do
+    -- Remove old entries (only if not in session mode, or if we have too many from current session)
+    local maxEntries = settings.onlyCurrentSession and 20 or settings.maxEntries
+    while #self.recentLoot > maxEntries do
         table.remove(self.recentLoot)
     end
+    
+    -- Update last loot time
+    self.lastLootTime = currentTime
     
     self:UpdateDisplay()
     self:StartDisplayTimer()
@@ -374,7 +407,6 @@ end
 -- Event handling
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
-eventFrame:RegisterEvent("LOOT_READY")
 eventFrame:RegisterEvent("CHAT_MSG_LOOT")
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
@@ -383,33 +415,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         RLT:CreateFrame()
         RLT:CreateSettingsPanel()
         
-    elseif event == "LOOT_READY" then
-        -- Handle direct looting
-        local numLoot = GetNumLootItems()
-        for i = 1, numLoot do
-            local itemLink = GetLootSlotLink(i)
-            if itemLink then
-                local _, _, count = GetLootSlotInfo(i)
-                RLT:AddLoot(itemLink, count)
-            end
-        end
-        
     elseif event == "CHAT_MSG_LOOT" then
         local message = ...
         
         -- Parse loot messages for items we received
-        -- Pattern for "You receive item: [Item Name]"
+        -- Pattern for "You receive item: [Item Name]" or "You receive loot: [Item Name]"
         local itemLink = string.match(message, "You receive.-: (|c%x+|Hitem:.-|r)")
-        if itemLink then
-            -- Check for quantity
-            local count = string.match(message, "You receive.-x(%d+)")
-            RLT:AddLoot(itemLink, tonumber(count))
+        if not itemLink then
+            itemLink = string.match(message, "You receive loot: (|c%x+|Hitem:.-|r)")
         end
         
-        -- Pattern for "You receive loot: [Item Name]"
-        itemLink = string.match(message, "You receive loot: (|c%x+|Hitem:.-|r)")
         if itemLink then
-            local count = string.match(message, "You receive loot:.-x(%d+)")
+            -- Check for quantity in the message (e.g., "x5")
+            local count = string.match(message, "x(%d+)")
             RLT:AddLoot(itemLink, tonumber(count))
         end
     end
