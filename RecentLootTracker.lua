@@ -508,7 +508,7 @@ end)
 
 -- Slash command to toggle the window
 SLASH_RECENTLOOT1 = "/recentloot"
-SLASH_RECENTLOOT2 = "/rl"
+SLASH_RECENTLOOT2 = "/rlt"
 SlashCmdList["RECENTLOOT"] = function(msg)
     if not RLT.frame then
         RLT:CreateFrame()
